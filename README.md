@@ -42,6 +42,7 @@ docker compose up --build
 
 Once running:
 
+
 - Coordinator API: http://localhost:5000
 - Dashboard UI: http://localhost:5000
 - Health: http://localhost:5000/health
@@ -165,7 +166,56 @@ dotnet test tests/Integration/Coordinator.IntegrationTests/Coordinator.Integrati
 
 GitHub Actions runs build, test, and format verification on each push/PR.
 
----
+### Submit job
+
+```bash
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "http_get",
+    "payload": { "url": "https://example.com" },
+    "runAt": "2025-01-01T00:00:00Z",
+    "maxAttempts": 3,
+    "timeoutSeconds": 30,
+    "idempotencyKey": "example-http-1"
+  }'
+```
+
+### Schedule recurring job
+
+```bash
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "cpu",
+    "payload": { "durationSeconds": 2 },
+    "cron": "*/5 * * * *",
+    "idempotencyKey": "cpu-every-5min"
+  }'
+```
+
+### Query job
+
+```bash
+curl http://localhost:5000/api/jobs?status=Running&take=25
+curl http://localhost:5000/api/jobs/<jobId>
+```
+
+### Cancel or retry
+
+```bash
+curl -X POST http://localhost:5000/api/jobs/<jobId>/cancel
+curl -X POST http://localhost:5000/api/jobs/<jobId>/retry -H "Content-Type: application/json" -d '{ "reason": "manual" }'
+```
+
+## License
+### Seed demo job
+
+```bash
+curl -X POST http://localhost:5000/api/seed
+```
+
+## Job Types
 
 ## License
 
