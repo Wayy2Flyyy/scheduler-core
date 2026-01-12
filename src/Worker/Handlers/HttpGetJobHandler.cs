@@ -36,11 +36,6 @@ public sealed class HttpGetJobHandler : IJobHandler
             statusCode = (int)response.StatusCode,
             reason = response.ReasonPhrase,
             latencyMs = stopwatch.ElapsedMilliseconds
-        var response = await _httpClient.GetAsync(url, cancellationToken);
-        var resultJson = JsonSerializer.SerializeToElement(new
-        {
-            statusCode = (int)response.StatusCode,
-            reason = response.ReasonPhrase
         });
 
         return response.IsSuccessStatusCode

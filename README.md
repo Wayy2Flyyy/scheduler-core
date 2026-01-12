@@ -23,6 +23,25 @@ src/Shared        DTOs + utilities
 migrations        SQL migrations
 scripts           Helper scripts
 samples           (reserved)
+tests/Unit        Unit tests
+tests/Integration Integration tests (Postgres)
+```
+
+## Prerequisites
+
+- .NET SDK 8.x
+- Docker + Docker Compose
+- Postgres (if not using Docker)
+
+## Quick Start (Docker)
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Once running:
+
 
 - Coordinator API: http://localhost:5000
 - Dashboard UI: http://localhost:5000
@@ -85,7 +104,6 @@ curl -X POST http://localhost:5000/api/jobs/<jobId>/cancel
 curl -X POST http://localhost:5000/api/jobs/<jobId>/retry -H "Content-Type: application/json" -d '{ "reason": "manual" }'
 ```
 
-## License
 ### Seed demo job
 
 ```bash
@@ -100,11 +118,12 @@ curl -X POST http://localhost:5000/api/seed
 | `cpu` | `{ "durationSeconds": 2 }` | Busy-loop CPU workload |
 | `file_write` | `{ "fileName": "hello.txt", "content": "hello" }` | Write file on worker disk |
 
-## Leases, Retries, Timeouts
+## Reliability Model (Leases, Retries, Timeouts)
 
 - Workers claim jobs via `/api/workers/claim` and receive a lease for a fixed duration.
-- The coordinator monitors expired leases and requeues the job with exponential backoff.
-- Each failure increments `attempts`; once `maxAttempts` is exceeded the job moves to `DeadLetter`.
+- Workers renew leases while executing; the coordinator requeues when leases expire.
+- Every claim creates a `job_runs` record and increments `attempts`.
+- Each failure schedules an exponential backoff retry; after `maxAttempts` the job moves to `DeadLetter`.
 - Jobs are executed at-least-once; ensure handlers are idempotent where possible.
 
 ## Scaling Workers
@@ -129,6 +148,14 @@ make up
 make down
 ```
 
+## Tests
+
+```bash
+dotnet test tests/Unit/Coordinator.Tests/Coordinator.UnitTests.csproj
+dotnet test tests/Unit/Worker.Tests/Worker.UnitTests.csproj
+dotnet test tests/Integration/Coordinator.IntegrationTests/Coordinator.IntegrationTests.csproj
+```
+
 ## Troubleshooting
 
 - **Migrations failing**: ensure Postgres is reachable and credentials match `.env`.
@@ -139,6 +166,57 @@ make down
 
 GitHub Actions runs build, test, and format verification on each push/PR.
 
----
+### Submit job
+
+```bash
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "http_get",
+    "payload": { "url": "https://example.com" },
+    "runAt": "2025-01-01T00:00:00Z",
+    "maxAttempts": 3,
+    "timeoutSeconds": 30,
+    "idempotencyKey": "example-http-1"
+  }'
+```
+
+### Schedule recurring job
+
+```bash
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "cpu",
+    "payload": { "durationSeconds": 2 },
+    "cron": "*/5 * * * *",
+    "idempotencyKey": "cpu-every-5min"
+  }'
+```
+
+### Query job
+
+```bash
+curl http://localhost:5000/api/jobs?status=Running&take=25
+curl http://localhost:5000/api/jobs/<jobId>
+```
+
+### Cancel or retry
+
+```bash
+curl -X POST http://localhost:5000/api/jobs/<jobId>/cancel
+curl -X POST http://localhost:5000/api/jobs/<jobId>/retry -H "Content-Type: application/json" -d '{ "reason": "manual" }'
+```
+
+## License
+### Seed demo job
+
+```bash
+curl -X POST http://localhost:5000/api/seed
+```
+
+## Job Types
+
+## License
 
 MIT

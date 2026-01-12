@@ -97,7 +97,6 @@ public sealed class WorkerService : BackgroundService
                 result = stoppingToken.IsCancellationRequested
                     ? new JobHandlerResult(false, "Worker shutting down", null)
                     : new JobHandlerResult(false, "Job timed out", JsonSerializer.SerializeToElement(new { timeoutSeconds = job.TimeoutSeconds }));
-                result = new JobHandlerResult(false, "Job timed out", JsonSerializer.SerializeToElement(new { timeoutSeconds = job.TimeoutSeconds }));
             }
             catch (Exception ex)
             {
@@ -134,11 +133,25 @@ public sealed class WorkerService : BackgroundService
             {
                 _logger.LogWarning(ex, "Lease renewal task failed for job {JobId}", job.Id);
             }
-            await _client.CompleteJobAsync(completion, stoppingToken);
-        }
-        finally
-        {
             _semaphore.Release();
+        }
+    }
+
+    private async Task RenewLeaseLoopAsync(JobDto job, CancellationToken cancellationToken)
+    {
+        var interval = TimeSpan.FromSeconds(Math.Max(5, _options.LeaseSeconds / 2));
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await _client.RenewLeaseAsync(new RenewLeaseRequest(_options.WorkerId, job.Id, _options.LeaseSeconds), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to renew lease for job {JobId}", job.Id);
+            }
+
+            await Task.Delay(interval, cancellationToken);
         }
     }
 

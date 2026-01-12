@@ -227,6 +227,27 @@ public sealed class JobService
         return true;
     }
 
+    public async Task<RenewLeaseResponse> RenewLeaseAsync(RenewLeaseRequest request, CancellationToken cancellationToken)
+    {
+        var job = await _dbContext.Jobs.FirstOrDefaultAsync(j => j.Id == request.JobId, cancellationToken);
+        if (job is null)
+        {
+            return new RenewLeaseResponse(false, null);
+        }
+
+        if (job.Status != JobStatus.Running || !string.Equals(job.LeaseOwner, request.WorkerId, StringComparison.OrdinalIgnoreCase))
+        {
+            return new RenewLeaseResponse(false, job.LeaseExpiresAt);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        job.LeaseExpiresAt = now.AddSeconds(request.LeaseSeconds);
+        job.UpdatedAt = now;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new RenewLeaseResponse(true, job.LeaseExpiresAt);
+    }
+
     public async Task<bool> CompleteJobAsync(JobCompletionRequest request, CancellationToken cancellationToken)
     {
         var job = await _dbContext.Jobs.FirstOrDefaultAsync(j => j.Id == request.JobId, cancellationToken);
@@ -250,6 +271,20 @@ public sealed class JobService
         job.UpdatedAt = DateTimeOffset.UtcNow;
         job.LeaseOwner = null;
         job.LeaseExpiresAt = null;
+
+        var run = await _dbContext.JobRuns
+            .Where(r => r.JobId == job.Id && r.Status == JobStatus.Running && r.WorkerId == request.WorkerId)
+            .OrderByDescending(r => r.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (run is not null)
+        {
+            run.Status = request.Success ? JobStatus.Succeeded : JobStatus.Failed;
+            run.CompletedAt = job.UpdatedAt;
+            run.DurationMs = request.DurationMs;
+            run.Error = request.Error;
+            run.Result = request.Result?.GetRawText();
+        }
 
         if (request.Success)
         {

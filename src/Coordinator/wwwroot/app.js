@@ -47,7 +47,6 @@ jobsTable.addEventListener('click', async (event) => {
     const runsResponse = await fetch(`/api/jobs/${jobId}/runs`);
     const runs = await runsResponse.json();
     details.textContent = JSON.stringify({ job, runs }, null, 2);
-    details.textContent = JSON.stringify(job, null, 2);
   }
 
   if (action === 'retry') {
