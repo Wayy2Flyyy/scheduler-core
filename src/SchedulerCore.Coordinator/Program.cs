@@ -60,7 +60,7 @@ app.UseHttpsRedirection();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-Log.Information("Scheduler Coordinator starting on {Urls}", 
-    string.Join(", ", builder.Configuration.GetSection("Urls").Get<string[]>() ?? new[] { "http://localhost:5000" }));
+var urls = builder.Configuration.GetValue<string>("Urls") ?? "http://localhost:5000";
+Log.Information("Scheduler Coordinator starting on {Urls}", urls);
 
 app.Run();

@@ -15,6 +15,7 @@ public class JobResponse
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
+    public string Payload { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public int RetryCount { get; set; }
     public int MaxRetries { get; set; }
@@ -37,4 +38,23 @@ public class WorkerStatusResponse
     public DateTime LastHeartbeat { get; set; }
     public int Capacity { get; set; }
     public int ActiveJobs { get; set; }
+}
+
+public class AcquireJobRequest
+{
+    public string WorkerId { get; set; } = string.Empty;
+    public int LeaseDurationMinutes { get; set; } = 5;
+}
+
+public class CompleteJobRequest
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+public class RegisterWorkerRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string HostName { get; set; } = string.Empty;
+    public int Capacity { get; set; } = 10;
 }

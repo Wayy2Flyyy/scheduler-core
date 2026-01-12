@@ -73,6 +73,58 @@ public class JobsController : ControllerBase
         return jobs.Select(MapToResponse).ToList();
     }
 
+    [HttpPost("acquire")]
+    public async Task<ActionResult<JobResponse>> AcquireJob([FromBody] AcquireJobRequest request, CancellationToken cancellationToken)
+    {
+        var leaseExpiration = DateTime.UtcNow.AddMinutes(request.LeaseDurationMinutes);
+        var job = await _jobRepository.AcquireNextJobAsync(request.WorkerId, leaseExpiration, cancellationToken);
+        
+        if (job == null)
+            return NoContent();
+
+        _logger.LogInformation("Job {JobId} acquired by worker {WorkerId}", job.Id, request.WorkerId);
+        return MapToResponse(job);
+    }
+
+    [HttpPost("{id}/complete")]
+    public async Task<ActionResult> CompleteJob(Guid id, [FromBody] CompleteJobRequest request, CancellationToken cancellationToken)
+    {
+        var job = await _jobRepository.GetByIdAsync(id, cancellationToken);
+        if (job == null)
+            return NotFound();
+
+        if (request.Success)
+        {
+            job.Status = JobStatus.Completed;
+            job.CompletedAt = DateTime.UtcNow;
+            _logger.LogInformation("Job {JobId} completed successfully", job.Id);
+        }
+        else
+        {
+            job.RetryCount++;
+            job.LastError = request.ErrorMessage;
+
+            if (job.RetryCount >= job.MaxRetries)
+            {
+                job.Status = JobStatus.Failed;
+                job.CompletedAt = DateTime.UtcNow;
+                _logger.LogWarning("Job {JobId} failed after {RetryCount} retries", job.Id, job.RetryCount);
+            }
+            else
+            {
+                job.Status = JobStatus.Pending;
+                job.WorkerId = null;
+                job.LeaseExpiresAt = null;
+                job.StartedAt = null;
+                _logger.LogWarning("Job {JobId} failed, retry {RetryCount}/{MaxRetries}", 
+                    job.Id, job.RetryCount, job.MaxRetries);
+            }
+        }
+
+        await _jobRepository.UpdateAsync(job, cancellationToken);
+        return Ok();
+    }
+
     private static JobResponse MapToResponse(Job job)
     {
         return new JobResponse
@@ -80,6 +132,7 @@ public class JobsController : ControllerBase
             Id = job.Id,
             Name = job.Name,
             Type = job.Type,
+            Payload = job.Payload,
             Status = job.Status.ToString(),
             RetryCount = job.RetryCount,
             MaxRetries = job.MaxRetries,
