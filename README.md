@@ -157,6 +157,3 @@ GitHub Actions runs build, test, and format verification on each push/PR.
 
 ---
 
-## License
-
-MIT
