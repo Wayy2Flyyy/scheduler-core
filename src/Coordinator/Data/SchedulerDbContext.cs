@@ -11,6 +11,7 @@ public sealed class SchedulerDbContext : DbContext
 
     public DbSet<JobEntity> Jobs => Set<JobEntity>();
     public DbSet<RecurringJobEntity> RecurringJobs => Set<RecurringJobEntity>();
+    public DbSet<JobRunEntity> JobRuns => Set<JobRunEntity>();
     public DbSet<WorkerHeartbeatEntity> WorkerHeartbeats => Set<WorkerHeartbeatEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -35,6 +36,20 @@ public sealed class SchedulerDbContext : DbContext
             entity.HasOne(job => job.RecurringJob)
                 .WithMany(recurring => recurring.Jobs)
                 .HasForeignKey(job => job.RecurringJobId);
+        });
+
+        modelBuilder.Entity<JobRunEntity>(entity =>
+        {
+            entity.ToTable("job_runs");
+            entity.HasKey(run => run.Id);
+            entity.Property(run => run.Status).IsRequired();
+            entity.Property(run => run.WorkerId).IsRequired();
+            entity.Property(run => run.StartedAt).IsRequired();
+            entity.HasIndex(run => run.JobId);
+            entity.HasIndex(run => run.Status);
+            entity.HasOne(run => run.Job)
+                .WithMany()
+                .HasForeignKey(run => run.JobId);
         });
 
         modelBuilder.Entity<RecurringJobEntity>(entity =>

@@ -30,6 +30,19 @@ CREATE TABLE IF NOT EXISTS recurring_jobs (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS job_runs (
+    id UUID PRIMARY KEY,
+    job_id UUID NOT NULL REFERENCES jobs(id),
+    attempt INTEGER NOT NULL,
+    status INTEGER NOT NULL,
+    worker_id TEXT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ NULL,
+    duration_ms INTEGER NULL,
+    error TEXT NULL,
+    result TEXT NULL
+);
+
 CREATE TABLE IF NOT EXISTS worker_heartbeats (
     id UUID PRIMARY KEY,
     worker_id TEXT NOT NULL UNIQUE,
@@ -43,3 +56,6 @@ CREATE INDEX IF NOT EXISTS ix_jobs_idempotency_key ON jobs(idempotency_key);
 
 CREATE INDEX IF NOT EXISTS ix_recurring_jobs_next_run_at ON recurring_jobs(next_run_at);
 CREATE INDEX IF NOT EXISTS ix_recurring_jobs_idempotency_key ON recurring_jobs(idempotency_key);
+
+CREATE INDEX IF NOT EXISTS ix_job_runs_job_id ON job_runs(job_id);
+CREATE INDEX IF NOT EXISTS ix_job_runs_status ON job_runs(status);

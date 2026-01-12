@@ -31,4 +31,12 @@ public sealed class WorkerClient
         var response = await _httpClient.PostAsJsonAsync("/api/workers/complete", request, cancellationToken);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task<RenewLeaseResponse> RenewLeaseAsync(RenewLeaseRequest request, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/workers/renew", request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadFromJsonAsync<RenewLeaseResponse>(cancellationToken: cancellationToken);
+        return payload ?? new RenewLeaseResponse(false, null);
+    }
 }

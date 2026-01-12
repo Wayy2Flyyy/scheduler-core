@@ -92,6 +92,12 @@ app.MapGet("/api/jobs/{jobId:guid}", async (Guid jobId, JobService jobService, C
     return job is null ? Results.NotFound() : Results.Ok(job);
 });
 
+app.MapGet("/api/jobs/{jobId:guid}/runs", async (Guid jobId, JobService jobService, CancellationToken cancellationToken) =>
+{
+    var runs = await jobService.GetJobRunsAsync(jobId, cancellationToken);
+    return Results.Ok(runs);
+});
+
 app.MapPost("/api/jobs/{jobId:guid}/cancel", async (Guid jobId, JobService jobService, CancellationToken cancellationToken) =>
 {
     var success = await jobService.CancelJobAsync(jobId, cancellationToken);
@@ -134,6 +140,20 @@ app.MapPost("/api/workers/complete", async (
 
     var success = await jobService.CompleteJobAsync(request, cancellationToken);
     return success ? Results.Ok(new { jobId = request.JobId }) : Results.NotFound();
+});
+
+app.MapPost("/api/workers/renew", async (
+    RenewLeaseRequest request,
+    JobService jobService,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.WorkerId))
+    {
+        return Results.BadRequest(new { error = "WorkerId is required." });
+    }
+
+    var response = await jobService.RenewLeaseAsync(request, cancellationToken);
+    return Results.Ok(response);
 });
 
 app.MapPost("/api/workers/heartbeat", async (

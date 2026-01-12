@@ -70,6 +70,8 @@ public sealed class WorkerService : BackgroundService
     private async Task RunJobAsync(JobDto job, CancellationToken stoppingToken)
     {
         await _semaphore.WaitAsync(stoppingToken);
+        using var renewCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var renewTask = RenewLeaseLoopAsync(job, renewCts.Token);
         try
         {
             var stopwatch = Stopwatch.StartNew();
@@ -92,6 +94,9 @@ public sealed class WorkerService : BackgroundService
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
+                result = stoppingToken.IsCancellationRequested
+                    ? new JobHandlerResult(false, "Worker shutting down", null)
+                    : new JobHandlerResult(false, "Job timed out", JsonSerializer.SerializeToElement(new { timeoutSeconds = job.TimeoutSeconds }));
                 result = new JobHandlerResult(false, "Job timed out", JsonSerializer.SerializeToElement(new { timeoutSeconds = job.TimeoutSeconds }));
             }
             catch (Exception ex)
@@ -109,6 +114,26 @@ public sealed class WorkerService : BackgroundService
                 result.Result,
                 (int)stopwatch.ElapsedMilliseconds);
 
+            try
+            {
+                await _client.CompleteJobAsync(completion, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to report completion for job {JobId}", job.Id);
+            }
+        }
+        finally
+        {
+            renewCts.Cancel();
+            try
+            {
+                await renewTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lease renewal task failed for job {JobId}", job.Id);
+            }
             await _client.CompleteJobAsync(completion, stoppingToken);
         }
         finally

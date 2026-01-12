@@ -28,6 +28,14 @@ public sealed class HttpGetJobHandler : IJobHandler
             return new JobHandlerResult(false, "URL is empty", null);
         }
 
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var response = await _httpClient.GetAsync(url, cancellationToken);
+        stopwatch.Stop();
+        var resultJson = JsonSerializer.SerializeToElement(new
+        {
+            statusCode = (int)response.StatusCode,
+            reason = response.ReasonPhrase,
+            latencyMs = stopwatch.ElapsedMilliseconds
         var response = await _httpClient.GetAsync(url, cancellationToken);
         var resultJson = JsonSerializer.SerializeToElement(new
         {

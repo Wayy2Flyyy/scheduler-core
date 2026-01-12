@@ -14,11 +14,15 @@ public sealed class CpuJobHandler : IJobHandler
         var durationSeconds = payload.TryGetProperty("durationSeconds", out var durationElement)
             ? Math.Max(1, durationElement.GetInt32())
             : 2;
+        var iterationsTarget = payload.TryGetProperty("iterations", out var iterationsElement)
+            ? Math.Max(0, iterationsElement.GetInt64())
+            : 0;
 
         var stopwatch = Stopwatch.StartNew();
         var target = TimeSpan.FromSeconds(durationSeconds);
         var iterations = 0L;
 
+        while (stopwatch.Elapsed < target && (iterationsTarget == 0 || iterations < iterationsTarget))
         while (stopwatch.Elapsed < target)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -30,6 +34,8 @@ public sealed class CpuJobHandler : IJobHandler
         var result = JsonSerializer.SerializeToElement(new
         {
             durationMs = stopwatch.ElapsedMilliseconds,
+            iterations,
+            targetIterations = iterationsTarget == 0 ? null : iterationsTarget
             iterations
         });
 

@@ -111,6 +111,18 @@ public sealed class JobService
         job.UpdatedAt = DateTimeOffset.UtcNow;
         job.LeaseOwner = null;
         job.LeaseExpiresAt = null;
+
+        var run = await _dbContext.JobRuns
+            .Where(r => r.JobId == job.Id && r.Status == JobStatus.Running)
+            .OrderByDescending(r => r.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (run is not null)
+        {
+            run.Status = JobStatus.Cancelled;
+            run.CompletedAt = job.UpdatedAt;
+            run.Error = "Cancelled";
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _metrics.Increment("jobs_cancelled");
@@ -133,6 +145,7 @@ public sealed class JobService
         job.Status = JobStatus.Pending;
         job.RunAt = DateTimeOffset.UtcNow;
         job.LastError = reason;
+        job.Attempts = 0;
         job.UpdatedAt = DateTimeOffset.UtcNow;
         job.LeaseOwner = null;
         job.LeaseExpiresAt = null;
@@ -154,6 +167,7 @@ public sealed class JobService
                 SELECT * FROM jobs
                 WHERE status IN (0, 1)
                   AND run_at <= NOW()
+                  AND attempts < max_attempts
                   AND (lease_expires_at IS NULL OR lease_expires_at < NOW())
                 ORDER BY run_at ASC
                 LIMIT {0}
@@ -162,10 +176,21 @@ public sealed class JobService
 
         foreach (var job in claimedJobs)
         {
+            job.Attempts += 1;
             job.Status = JobStatus.Running;
             job.LeaseOwner = request.WorkerId;
             job.LeaseExpiresAt = leaseExpiresAt;
             job.UpdatedAt = now;
+
+            _dbContext.JobRuns.Add(new JobRunEntity
+            {
+                Id = Guid.NewGuid(),
+                JobId = job.Id,
+                Attempt = job.Attempts,
+                Status = JobStatus.Running,
+                WorkerId = request.WorkerId,
+                StartedAt = now
+            });
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -230,12 +255,13 @@ public sealed class JobService
         {
             job.Status = JobStatus.Succeeded;
             job.Result = request.Result?.GetRawText();
+            job.LastError = null;
             _metrics.Increment("jobs_succeeded");
         }
         else
         {
-            job.Attempts += 1;
             job.LastError = request.Error;
+            job.Result = request.Result?.GetRawText();
 
             if (job.Attempts >= job.MaxAttempts)
             {
@@ -264,7 +290,6 @@ public sealed class JobService
 
         foreach (var job in expired)
         {
-            job.Attempts += 1;
             job.LeaseOwner = null;
             job.LeaseExpiresAt = null;
             job.LastError = "Lease expired";
@@ -280,6 +305,17 @@ public sealed class JobService
             }
 
             job.UpdatedAt = now;
+
+            var run = await _dbContext.JobRuns
+                .Where(r => r.JobId == job.Id && r.Status == JobStatus.Running)
+                .OrderByDescending(r => r.StartedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (run is not null)
+            {
+                run.Status = JobStatus.Failed;
+                run.CompletedAt = now;
+                run.Error = "Lease expired";
+            }
         }
 
         if (expired.Count > 0)
@@ -387,5 +423,27 @@ public sealed class JobService
             job.Result is null ? null : JsonSerializer.Deserialize<JsonElement>(job.Result),
             job.RecurringJobId,
             JsonSerializer.Deserialize<JsonElement>(job.Payload));
+    }
+
+    public async Task<JobRunListResponse> GetJobRunsAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        var runs = await _dbContext.JobRuns.AsNoTracking()
+            .Where(run => run.JobId == jobId)
+            .OrderByDescending(run => run.StartedAt)
+            .ToListAsync(cancellationToken);
+
+        var dtos = runs.Select(run => new JobRunDto(
+            run.Id,
+            run.JobId,
+            run.Attempt,
+            run.Status,
+            run.WorkerId,
+            run.StartedAt,
+            run.CompletedAt,
+            run.DurationMs,
+            run.Error,
+            run.Result is null ? null : JsonSerializer.Deserialize<JsonElement>(run.Result)));
+
+        return new JobRunListResponse(dtos.ToList());
     }
 }

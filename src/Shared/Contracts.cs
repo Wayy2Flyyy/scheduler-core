@@ -40,6 +40,10 @@ public sealed record ClaimJobsRequest(string WorkerId, int MaxJobs, int LeaseSec
 
 public sealed record ClaimJobsResponse(IReadOnlyCollection<JobDto> Jobs);
 
+public sealed record RenewLeaseRequest(string WorkerId, Guid JobId, int LeaseSeconds);
+
+public sealed record RenewLeaseResponse(bool Renewed, DateTimeOffset? LeaseExpiresAt);
+
 public sealed record JobCompletionRequest(
     string WorkerId,
     Guid JobId,
@@ -51,3 +55,17 @@ public sealed record JobCompletionRequest(
 public sealed record WorkerHeartbeatRequest(string WorkerId, DateTimeOffset? Timestamp);
 
 public sealed record RetryJobRequest(string? Reason);
+
+public sealed record JobRunDto(
+    Guid Id,
+    Guid JobId,
+    int Attempt,
+    JobStatus Status,
+    string WorkerId,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? CompletedAt,
+    int? DurationMs,
+    string? Error,
+    JsonElement? Result);
+
+public sealed record JobRunListResponse(IReadOnlyCollection<JobRunDto> Runs);

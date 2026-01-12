@@ -44,6 +44,9 @@ jobsTable.addEventListener('click', async (event) => {
   if (action === 'view') {
     const response = await fetch(`/api/jobs/${jobId}`);
     const job = await response.json();
+    const runsResponse = await fetch(`/api/jobs/${jobId}/runs`);
+    const runs = await runsResponse.json();
+    details.textContent = JSON.stringify({ job, runs }, null, 2);
     details.textContent = JSON.stringify(job, null, 2);
   }
 

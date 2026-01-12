@@ -23,23 +23,6 @@ src/Shared        DTOs + utilities
 migrations        SQL migrations
 scripts           Helper scripts
 samples           (reserved)
-tests             Unit + integration tests
-```
-
-## Prerequisites
-
-- .NET SDK 8.x
-- Docker + Docker Compose
-- Postgres (if not using Docker)
-
-## Quick Start (Docker)
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-Once running:
 
 - Coordinator API: http://localhost:5000
 - Dashboard UI: http://localhost:5000
@@ -102,6 +85,7 @@ curl -X POST http://localhost:5000/api/jobs/<jobId>/cancel
 curl -X POST http://localhost:5000/api/jobs/<jobId>/retry -H "Content-Type: application/json" -d '{ "reason": "manual" }'
 ```
 
+## License
 ### Seed demo job
 
 ```bash
@@ -157,3 +141,4 @@ GitHub Actions runs build, test, and format verification on each push/PR.
 
 ---
 
+MIT
