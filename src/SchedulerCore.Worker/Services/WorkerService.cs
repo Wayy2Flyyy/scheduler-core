@@ -6,10 +6,13 @@ namespace SchedulerCore.Worker.Services;
 
 public class WorkerService : BackgroundService
 {
+    private const int WorkerNameGuidLength = 8;
+    
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<WorkerService> _logger;
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
+    private readonly int _workerCapacity;
     private Guid _workerId;
     private readonly string _workerName;
     private readonly TimeSpan _pollInterval;
@@ -28,10 +31,16 @@ public class WorkerService : BackgroundService
         _httpClient = httpClientFactory.CreateClient("Coordinator");
         
         var tempId = Guid.NewGuid();
-        _workerName = Environment.MachineName + "_" + tempId.ToString()[..8];
-        _pollInterval = TimeSpan.FromSeconds(_configuration.GetValue<int>("Worker:PollIntervalSeconds", 10));
-        _heartbeatInterval = TimeSpan.FromSeconds(_configuration.GetValue<int>("Worker:HeartbeatIntervalSeconds", 30));
-        _leaseDurationMinutes = _configuration.GetValue<int>("Worker:LeaseDurationMinutes", 5);
+        _workerName = Environment.MachineName + "_" + 
+            tempId.ToString()[..WorkerNameGuidLength];
+        _pollInterval = TimeSpan.FromSeconds(
+            _configuration.GetValue<int>("Worker:PollIntervalSeconds", 10));
+        _heartbeatInterval = TimeSpan.FromSeconds(
+            _configuration.GetValue<int>("Worker:HeartbeatIntervalSeconds", 30));
+        _leaseDurationMinutes = 
+            _configuration.GetValue<int>("Worker:LeaseDurationMinutes", 5);
+        _workerCapacity = 
+            _configuration.GetValue<int>("Worker:Capacity", 10);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -81,7 +90,7 @@ public class WorkerService : BackgroundService
         {
             Name = _workerName,
             HostName = Environment.MachineName,
-            Capacity = 10
+            Capacity = _workerCapacity
         };
 
         var response = await _httpClient.PostAsJsonAsync("/api/workers/register", registerRequest, cancellationToken);
