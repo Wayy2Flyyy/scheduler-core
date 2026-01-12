@@ -23,6 +23,7 @@ public sealed class CpuJobHandler : IJobHandler
         var iterations = 0L;
 
         while (stopwatch.Elapsed < target && (iterationsTarget == 0 || iterations < iterationsTarget))
+        while (stopwatch.Elapsed < target)
         {
             cancellationToken.ThrowIfCancellationRequested();
             iterations += 1;
@@ -35,6 +36,7 @@ public sealed class CpuJobHandler : IJobHandler
             durationMs = stopwatch.ElapsedMilliseconds,
             iterations,
             targetIterations = iterationsTarget == 0 ? null : iterationsTarget
+            iterations
         });
 
         return Task.FromResult(new JobHandlerResult(true, null, result));
