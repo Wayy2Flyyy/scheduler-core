@@ -1,108 +1,159 @@
 # scheduler-core
 
-**Distributed Job Scheduler built in C# (.NET 8)**  
-Coordinator + workers with persistence, retries, leases, and observability.
-
-`scheduler-core` is a production-oriented distributed job scheduling system designed to reliably execute background jobs across multiple worker nodes. It focuses on correctness, fault tolerance, and maintainability over hype.
-
----
+Production-grade distributed job scheduler built in C# (.NET 8). This repo ships a Coordinator API, Worker service, and shared contracts with Postgres-backed persistence, retries, leases, and observability.
 
 ## Features
 
-- Coordinator / worker architecture
-- Persistent job state (PostgreSQL)
-- At-least-once execution with lease-based claiming
-- Automatic retries with exponential backoff
-- Delayed and recurring jobs
-- Idempotent job submission
-- Horizontal worker scaling
-- Graceful shutdown handling
-- Structured logging and health checks
-- Local-first development via Docker Compose
+- Coordinator + Worker architecture with Postgres persistence
+- Immediate, delayed, and cron-like recurring jobs
+- At-least-once execution with lease-based claims
+- Idempotency keys on submission
+- Retries with exponential backoff + dead-lettering
+- Heartbeats for workers
+- Structured JSON logging
+- Health + metrics endpoints
+- Minimal web UI for job visibility
+
+## Repository Layout
+
+```
+src/Coordinator   ASP.NET Core API + dashboard
+src/Worker        Hosted service worker
+src/Shared        DTOs + utilities
+migrations        SQL migrations
+scripts           Helper scripts
+samples           (reserved)
+tests             Unit + integration tests
+```
+
+## Prerequisites
+
+- .NET SDK 8.x
+- Docker + Docker Compose
+- Postgres (if not using Docker)
+
+## Quick Start (Docker)
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Once running:
+
+- Coordinator API: http://localhost:5000
+- Dashboard UI: http://localhost:5000
+- Health: http://localhost:5000/health
+- Metrics: http://localhost:5000/metrics
+
+## Local Run (without Docker)
+
+```bash
+dotnet restore
+./scripts/migrate.sh
+dotnet run --project src/Coordinator
+# In another terminal
+DOTNET_ENVIRONMENT=Development dotnet run --project src/Worker
+```
+
+Update the connection string in `src/Coordinator/appsettings.json` or override via environment variables.
+
+## API Usage
+
+### Submit job
+
+```bash
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "http_get",
+    "payload": { "url": "https://example.com" },
+    "runAt": "2025-01-01T00:00:00Z",
+    "maxAttempts": 3,
+    "timeoutSeconds": 30,
+    "idempotencyKey": "example-http-1"
+  }'
+```
+
+### Schedule recurring job
+
+```bash
+curl -X POST http://localhost:5000/api/jobs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "cpu",
+    "payload": { "durationSeconds": 2 },
+    "cron": "*/5 * * * *",
+    "idempotencyKey": "cpu-every-5min"
+  }'
+```
+
+### Query job
+
+```bash
+curl http://localhost:5000/api/jobs?status=Running&take=25
+curl http://localhost:5000/api/jobs/<jobId>
+```
+
+### Cancel or retry
+
+```bash
+curl -X POST http://localhost:5000/api/jobs/<jobId>/cancel
+curl -X POST http://localhost:5000/api/jobs/<jobId>/retry -H "Content-Type: application/json" -d '{ "reason": "manual" }'
+```
+
+### Seed demo job
+
+```bash
+curl -X POST http://localhost:5000/api/seed
+```
+
+## Job Types
+
+| Type | Payload | Description |
+|------|---------|-------------|
+| `http_get` | `{ "url": "https://example.com" }` | HTTP GET and capture status |
+| `cpu` | `{ "durationSeconds": 2 }` | Busy-loop CPU workload |
+| `file_write` | `{ "fileName": "hello.txt", "content": "hello" }` | Write file on worker disk |
+
+## Leases, Retries, Timeouts
+
+- Workers claim jobs via `/api/workers/claim` and receive a lease for a fixed duration.
+- The coordinator monitors expired leases and requeues the job with exponential backoff.
+- Each failure increments `attempts`; once `maxAttempts` is exceeded the job moves to `DeadLetter`.
+- Jobs are executed at-least-once; ensure handlers are idempotent where possible.
+
+## Scaling Workers
+
+Use Docker Compose scaling:
+
+```bash
+docker compose up --build --scale worker=3
+```
+
+Each worker gets its own ID and claims jobs independently.
+
+## Common Commands
+
+```bash
+make restore
+make build
+make test
+make format
+make migrate
+make up
+make down
+```
+
+## Troubleshooting
+
+- **Migrations failing**: ensure Postgres is reachable and credentials match `.env`.
+- **No jobs running**: check worker logs and ensure the worker can reach the coordinator URL.
+- **Jobs stuck in Running**: lease monitor will requeue after lease expiration.
+
+## CI
+
+GitHub Actions runs build, test, and format verification on each push/PR.
 
 ---
 
-## Architecture Overview
-
-**Coordinator**
-- ASP.NET Core service
-- Accepts job submissions via REST API
-- Manages scheduling, retries, leases, and state
-- Exposes health, metrics, and job status endpoints
-- Optional minimal web dashboard
-
-**Worker**
-- .NET hosted service
-- Polls coordinator for work
-- Executes jobs with configurable concurrency
-- Reports heartbeats and execution results
-- Handles crashes and safe lease release
-
-**Shared**
-- Job contracts and DTOs
-- Validation and common utilities
-- Shared scheduling and retry logic
-
----
-
-## Project Structure
-# scheduler-core
-
-**Distributed Job Scheduler built in C# (.NET 8)**  
-Coordinator + workers with persistence, retries, leases, and observability.
-
-`scheduler-core` is a production-oriented distributed job scheduling system designed to reliably execute background jobs across multiple worker nodes. It focuses on correctness, fault tolerance, and maintainability over hype.
-
----
-
-## Features
-
-- Coordinator / worker architecture
-- Persistent job state (PostgreSQL)
-- At-least-once execution with lease-based claiming
-- Automatic retries with exponential backoff
-- Delayed and recurring jobs
-- Idempotent job submission
-- Horizontal worker scaling
-- Graceful shutdown handling
-- Structured logging and health checks
-- Local-first development via Docker Compose
-
----
-
-## Architecture Overview
-
-**Coordinator**
-- ASP.NET Core service
-- Accepts job submissions via REST API
-- Manages scheduling, retries, leases, and state
-- Exposes health, metrics, and job status endpoints
-- Optional minimal web dashboard
-
-**Worker**
-- .NET hosted service
-- Polls coordinator for work
-- Executes jobs with configurable concurrency
-- Reports heartbeats and execution results
-- Handles crashes and safe lease release
-
-**Shared**
-- Job contracts and DTOs
-- Validation and common utilities
-- Shared scheduling and retry logic
-
----
-
-## Project Structure
-
-scheduler-core/
-├── src/
-│ ├── Coordinator/
-│ ├── Worker/
-│ └── Shared/
-├── tests/
-│ ├── Unit/
-│ └── Integration/
-├── docker-compose.yml
-├── .env.example
-├── README.md
