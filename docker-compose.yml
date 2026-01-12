@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: scheduler-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scheduler}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  coordinator:
+    build:
+      context: .
+      dockerfile: src/Coordinator/Dockerfile
+    container_name: scheduler-coordinator
+    environment:
+      ConnectionStrings__SchedulerDb: Host=postgres;Port=5432;Database=${POSTGRES_DB:-scheduler};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}
+      ASPNETCORE_URLS: http://0.0.0.0:5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+
+  worker:
+    build:
+      context: .
+      dockerfile: src/Worker/Dockerfile
+    environment:
+      Worker__CoordinatorUrl: http://coordinator:5000
+      Worker__MaxParallelJobs: 4
+    depends_on:
+      - coordinator
+    volumes:
+      - worker-output:/app/worker-output
+
+volumes:
+  postgres-data:
+  worker-output:
