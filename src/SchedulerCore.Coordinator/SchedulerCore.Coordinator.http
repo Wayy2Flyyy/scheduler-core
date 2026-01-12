@@ -1,0 +1,6 @@
+@SchedulerCore.Coordinator_HostAddress = http://localhost:5249
+
+GET {{SchedulerCore.Coordinator_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

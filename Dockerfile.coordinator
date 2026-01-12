@@ -1,0 +1,22 @@
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 5000
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["src/SchedulerCore.Coordinator/SchedulerCore.Coordinator.csproj", "src/SchedulerCore.Coordinator/"]
+COPY ["src/SchedulerCore.Domain/SchedulerCore.Domain.csproj", "src/SchedulerCore.Domain/"]
+COPY ["src/SchedulerCore.Persistence/SchedulerCore.Persistence.csproj", "src/SchedulerCore.Persistence/"]
+RUN dotnet restore "src/SchedulerCore.Coordinator/SchedulerCore.Coordinator.csproj"
+COPY . .
+WORKDIR "/src/src/SchedulerCore.Coordinator"
+RUN dotnet build "SchedulerCore.Coordinator.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "SchedulerCore.Coordinator.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENV ASPNETCORE_URLS=http://+:5000
+ENTRYPOINT ["dotnet", "SchedulerCore.Coordinator.dll"]

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Data Source=/data/scheduler.db
+    volumes:
+      - scheduler-data:/data
+    networks:
+      - scheduler-network
+
+  worker1:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - Coordinator__Url=http://coordinator:5000
+      - Worker__PollIntervalSeconds=10
+      - Worker__HeartbeatIntervalSeconds=30
+    depends_on:
+      - coordinator
+    networks:
+      - scheduler-network
+
+  worker2:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      - Coordinator__Url=http://coordinator:5000
+      - Worker__PollIntervalSeconds=10
+      - Worker__HeartbeatIntervalSeconds=30
+    depends_on:
+      - coordinator
+    networks:
+      - scheduler-network
+
+volumes:
+  scheduler-data:
+
+networks:
+  scheduler-network:
+    driver: bridge
