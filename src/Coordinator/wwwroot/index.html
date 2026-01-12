@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scheduler Core Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Scheduler Core</h1>
+      <p class="subtitle">Coordinator dashboard</p>
+    </header>
+
+    <section class="controls">
+      <label>
+        Status
+        <select id="statusFilter">
+          <option value="">All</option>
+          <option value="Pending">Pending</option>
+          <option value="Scheduled">Scheduled</option>
+          <option value="Running">Running</option>
+          <option value="Succeeded">Succeeded</option>
+          <option value="Failed">Failed</option>
+          <option value="Cancelled">Cancelled</option>
+          <option value="DeadLetter">DeadLetter</option>
+        </select>
+      </label>
+      <button id="refreshBtn">Refresh</button>
+    </section>
+
+    <section>
+      <table>
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Run At</th>
+            <th>Attempts</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="jobsTable"></tbody>
+      </table>
+    </section>
+
+    <section class="details" id="jobDetails">
+      <h2>Job Details</h2>
+      <pre id="jobDetailsBody">Select a job to view details.</pre>
+    </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
